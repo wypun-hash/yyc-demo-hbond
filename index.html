@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Water Hydrogen Bond Animation</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Use Inter font */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            overflow: hidden; /* Hide scrollbars */
+        }
+        /* Style the canvas */
+        canvas {
+            background-color: #1f2937; /* bg-gray-800 */
+            border-radius: 0.5rem; /* rounded-lg */
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white min-h-screen flex flex-col items-center justify-center p-4">
+
+    <div class="w-full max-w-3xl text-center">
+        <h1 class="text-3xl font-bold mb-4">2D Water Hydrogen Bond Animation</h1>
+        <p class="text-gray-300 mb-4">
+            Watch as the moving water molecule (H₂O) forms temporary hydrogen bonds (dashed yellow lines)
+            with the central molecule. This happens when a slightly positive Hydrogen (H, δ⁺)
+            gets close to a slightly negative Oxygen (O, δ⁻).
+        </p>
+        
+        <!-- Canvas for the animation -->
+        <canvas id="waterCanvas"></canvas>
+        
+        <!-- Reset Button -->
+        <button id="resetButton" class="mt-4 px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-75 transition duration-200">
+            Reset Animation
+        </button>
+    </div>
+
+    <script type="module">
+        // --- Canvas Setup ---
+        const canvas = document.getElementById('waterCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Set canvas size (can be responsive)
+        const container = canvas.parentElement;
+        const canvasWidth = container.clientWidth > 700 ? 700 : container.clientWidth;
+        const canvasHeight = 450;
+        canvas.width = canvasWidth;
+        canvas.height = canvasHeight;
+
+        // --- Animation Constants ---
+        const OXYGEN_RADIUS = 20;
+        const HYDROGEN_RADIUS = 10;
+        const COVALENT_BOND_LENGTH = 50; // Distance from O to H center
+        const BOND_ANGLE = (104.5 * Math.PI) / 180; // 104.5 degrees in radians
+        const HBOND_MIN_DIST = 60; // Min distance for H-bond
+        const HBOND_MAX_DIST = 100; // Max distance for H-bond
+
+        let molecules = [];
+        let hBonds = []; // Array to store {from: {x,y}, to: {x,y}}
+
+        /**
+         * Represents a single Water Molecule
+         */
+        class WaterMolecule {
+            constructor(x, y, angle, isFixed = false) {
+                this.x = x; // Oxygen x-position
+                this.y = y; // Oxygen y-position
+                this.angle = angle; // Overall molecule rotation
+                this.isFixed = isFixed;
+
+                if (!isFixed) {
+                    this.vx = (Math.random() - 0.5) * 1; // velocity x
+                    this.vy = (Math.random() - 0.5) * 1; // velocity y
+                    this.vAngle = (Math.random() - 0.5) * 0.02; // rotational velocity
+                } else {
+                    this.vx = 0;
+                    this.vy = 0;
+                    this.vAngle = 0;
+                }
+            }
+
+            /**
+             * Calculates and returns the [x, y] positions of the two hydrogen atoms
+             */
+            getHydrogenPositions() {
+                // Angle for the first hydrogen
+                const h1_angle = this.angle - BOND_ANGLE / 2;
+                const h1_x = this.x + COVALENT_BOND_LENGTH * Math.cos(h1_angle);
+                const h1_y = this.y + COVALENT_BOND_LENGTH * Math.sin(h1_angle);
+
+                // Angle for the second hydrogen
+                const h2_angle = this.angle + BOND_ANGLE / 2;
+                const h2_x = this.x + COVALENT_BOND_LENGTH * Math.cos(h2_angle);
+                const h2_y = this.y + COVALENT_BOND_LENGTH * Math.sin(h2_angle);
+                
+                return [{x: h1_x, y: h1_y}, {x: h2_x, y: h2_y}];
+            }
+
+            /**
+             * Draws the molecule on the canvas
+             */
+            draw() {
+                const [h1, h2] = this.getHydrogenPositions();
+
+                // --- Draw Covalent Bonds (solid lines) ---
+                ctx.strokeStyle = 'white';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(this.x, this.y);
+                ctx.lineTo(h1.x, h1.y);
+                ctx.moveTo(this.x, this.y);
+                ctx.lineTo(h2.x, h2.y);
+                ctx.stroke();
+
+                // --- Draw Oxygen Atom (Red, δ⁻) ---
+                ctx.fillStyle = '#CC0000'; // Red
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, OXYGEN_RADIUS, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Oxygen labels
+                ctx.fillStyle = 'white';
+                ctx.font = 'bold 16px Inter';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('O', this.x, this.y - 2);
+                ctx.font = '12px Inter';
+                ctx.fillText('δ⁻', this.x, this.y + 12);
+
+
+                // --- Draw Hydrogen Atoms (White, δ⁺) ---
+                // Hydrogen 1
+                ctx.fillStyle = '#E0E0E0'; // White/Grey
+                ctx.beginPath();
+                ctx.arc(h1.x, h1.y, HYDROGEN_RADIUS, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // H1 labels
+                ctx.fillStyle = 'black';
+                ctx.font = 'bold 12px Inter';
+                ctx.fillText('H', h1.x, h1.y);
+                ctx.fillStyle = '#333';
+                ctx.font = '10px Inter';
+                ctx.fillText('δ⁺', h1.x, h1.y + 10);
+
+                // Hydrogen 2
+                ctx.fillStyle = '#E0E0E0';
+                ctx.beginPath();
+                ctx.arc(h2.x, h2.y, HYDROGEN_RADIUS, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // H2 labels
+                ctx.fillStyle = 'black';
+                ctx.font = 'bold 12px Inter';
+                ctx.fillText('H', h2.x, h2.y);
+                ctx.fillStyle = '#333';
+                ctx.font = '10px Inter';
+                ctx.fillText('δ⁺', h2.x, h2.y + 10);
+            }
+
+            /**
+             * Updates the molecule's position and rotation
+             */
+            update() {
+                if (this.isFixed) return;
+
+                this.x += this.vx;
+                this.y += this.vy;
+                this.angle += this.vAngle;
+
+                // Bounce off walls
+                // We check a larger boundary to keep the whole molecule visible
+                const boundary = OXYGEN_RADIUS + COVALENT_BOND_LENGTH;
+                if (this.x < boundary || this.x > canvas.width - boundary) {
+                    this.vx *= -1;
+                    this.x = Math.max(boundary, Math.min(canvas.width - boundary, this.x)); // Prevent sticking
+                }
+                if (this.y < boundary || this.y > canvas.height - boundary) {
+                    this.vy *= -1;
+                    this.y = Math.max(boundary, Math.min(canvas.height - boundary, this.y)); // Prevent sticking
+                }
+            }
+        }
+
+        /**
+         * Initializes or resets the animation
+         */
+        function init() {
+            molecules = [];
+            
+            // Add a fixed molecule in the center
+            let centralMolecule = new WaterMolecule(canvas.width / 2, canvas.height / 2, -Math.PI / 2, true);
+            molecules.push(centralMolecule);
+            
+            // Add a moving molecule
+            let movingMolecule = new WaterMolecule(100, 100, Math.random() * Math.PI * 2);
+            molecules.push(movingMolecule);
+        }
+
+        /**
+         * Checks for and stores potential hydrogen bonds
+         */
+        function checkHBonds() {
+            hBonds = []; // Clear bonds each frame
+            if (molecules.length < 2) return;
+
+            const molA = molecules[0]; // Fixed molecule
+            const molB = molecules[1]; // Moving molecule
+
+            // Get atom positions for both
+            const [h1_A, h2_A] = molA.getHydrogenPositions();
+            const o_A = { x: molA.x, y: molA.y };
+
+            const [h1_B, h2_B] = molB.getHydrogenPositions();
+            const o_B = { x: molB.x, y: molB.y };
+
+            // Check B's Hydrogens (δ⁺) against A's Oxygen (δ⁻)
+            checkAndAddBond(h1_B, o_A);
+            checkAndAddBond(h2_B, o_A);
+
+            // Check A's Hydrogens (δ⁺) against B's Oxygen (δ⁻)
+            checkAndAddBond(h1_A, o_B);
+            checkAndAddBond(h2_A, o_B);
+        }
+        
+        /**
+         * Helper function to check distance and add a bond
+         */
+        function checkAndAddBond(h_pos, o_pos) {
+            const dist = Math.hypot(h_pos.x - o_pos.x, h_pos.y - o_pos.y);
+            
+            // Check if distance is within the "bonding" range
+            if (dist > HBOND_MIN_DIST && dist < HBOND_MAX_DIST) {
+                hBonds.push({ from: h_pos, to: o_pos });
+            }
+        }
+
+        /**
+         * Draws all active hydrogen bonds
+         */
+        function drawHBonds() {
+            ctx.strokeStyle = 'rgba(255, 255, 0, 0.7)'; // Bright yellow, semi-transparent
+            ctx.lineWidth = 2;
+            ctx.setLineDash([5, 5]); // Dashed line
+
+            hBonds.forEach(bond => {
+                ctx.beginPath();
+                ctx.moveTo(bond.from.x, bond.from.y);
+                ctx.lineTo(bond.to.x, bond.to.y);
+                ctx.stroke();
+            });
+
+            ctx.setLineDash([]); // Reset to solid lines for other drawing
+        }
+        
+        /**
+         * Draws the legend on the canvas
+         */
+        function drawLegend() {
+            ctx.fillStyle = 'white';
+            ctx.font = '14px Inter';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'top';
+
+            // Covalent Bond legend
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(20, 20);
+            ctx.lineTo(50, 20);
+            ctx.stroke();
+            ctx.fillText('Covalent Bond (strong, within molecule)', 60, 15);
+
+            // Hydrogen Bond legend
+            ctx.strokeStyle = 'rgba(255, 255, 0, 0.7)'; // Yellow
+            ctx.setLineDash([5, 5]);
+            ctx.beginPath();
+            ctx.moveTo(20, 45);
+            ctx.lineTo(50, 45);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.fillStyle = 'rgba(255, 255, 0, 0.7)';
+            ctx.fillText('Hydrogen Bond (weaker, between molecules)', 60, 40);
+        }
+
+        /**
+         * The main animation loop
+         */
+        function animate() {
+            // Clear the canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Update molecule positions
+            molecules.forEach(mol => mol.update());
+            
+            // Check for new H-bonds
+            checkHBonds();
+            
+            // Draw H-bonds first (so they are "behind" the atoms)
+            drawHBonds();
+            
+            // Draw the molecules
+            molecules.forEach(mol => mol.draw());
+            
+            // Draw the legend
+            drawLegend();
+
+            // Request the next frame
+            requestAnimationFrame(animate);
+        }
+
+        // --- Start Application ---
+        
+        // Add event listener for the reset button
+        document.getElementById('resetButton').addEventListener('click', init);
+
+        // Initial setup and start the animation
+        init();
+        animate();
+
+    </script>
+</body>
+</html>
